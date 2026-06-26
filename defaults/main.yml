@@ -1,0 +1,91 @@
+---
+# ----------------------------------------------------------------------------
+# Install
+# ----------------------------------------------------------------------------
+
+# "apt"    — install from Caddy's official cloudsmith apt repo (default)
+# "xcaddy" — build a custom binary; requires caddy_extra_modules to be useful
+caddy_install_method: apt
+
+# Only used when caddy_install_method: xcaddy
+# List of module import paths, e.g.:
+#   - github.com/caddy-dns/cloudflare
+#   - github.com/caddyserver/cache-handler
+caddy_extra_modules: []
+
+# Go version to install when using xcaddy (ignored for apt)
+caddy_go_version: "1.22"
+
+# ----------------------------------------------------------------------------
+# Paths & ownership
+# ----------------------------------------------------------------------------
+
+caddy_config_dir: /etc/caddy
+caddy_caddyfile: /etc/caddy/Caddyfile
+caddy_data_dir: /var/lib/caddy
+caddy_log_dir: /var/log/caddy
+
+caddy_user: caddy
+caddy_group: caddy
+
+# ----------------------------------------------------------------------------
+# Caddyfile template
+# ----------------------------------------------------------------------------
+
+# Jinja2 template filename (relative to the role's templates/ dir) or an
+# absolute path to a caller-supplied template. Set to "" to skip deployment.
+caddy_caddyfile_template: Caddyfile.j2
+
+# ----------------------------------------------------------------------------
+# systemd
+# ----------------------------------------------------------------------------
+
+# Environment variables injected into the caddy.service drop-in.
+# Key-value dict, e.g.:
+#   GODEBUG: tlsmlkem=0
+caddy_systemd_env: {}
+
+# ----------------------------------------------------------------------------
+# TLS / global options
+# ----------------------------------------------------------------------------
+
+caddy_acme_email: ""
+
+# ----------------------------------------------------------------------------
+# Sites
+# ----------------------------------------------------------------------------
+
+# List of reverse-proxy sites. Each entry supports:
+#   host:             required — public hostname
+#   upstream:         required — backend address (host:port)
+#   allow_ips:        optional — whole-site IP allowlist (list of IPs/CIDRs)
+#   protected_paths:  optional — list of { path, allow_ips } for per-path restrictions
+#   import_snippets:  optional — list of caddy_snippets names to `import` into the site
+#   import_files:     optional — list of file paths to `import` into the site (e.g. a
+#                                runtime-managed snippet owned by another process)
+#   extra_directives: optional — raw Caddyfile directives injected verbatim into the
+#                                site block, just before reverse_proxy (multi-line ok)
+caddy_sites: []
+
+# Reusable Caddy snippets, rendered as `(name) { body }` at the top of the
+# Caddyfile. A site pulls one in with `import_snippets: [name]`. Body is raw
+# Caddyfile. Example:
+#
+# caddy_snippets:
+#   security_headers: |
+#     header {
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+#         X-Content-Type-Options nosniff
+#         X-Frame-Options DENY
+#         Referrer-Policy strict-origin-when-cross-origin
+#         -Server
+#     }
+#   compression: |
+#     encode zstd gzip
+caddy_snippets: {}
+
+# Expose a Prometheus metrics + health endpoint on this address/port.
+# Set caddy_metrics_bind to "" to disable the metrics server entirely.
+caddy_metrics_bind: ""
+caddy_metrics_port: 9090
+caddy_metrics_allow_ips: []

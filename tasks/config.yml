@@ -1,0 +1,11 @@
+---
+- name: Deploy Caddyfile from template
+  ansible.builtin.template:
+    src: "{{ caddy_caddyfile_template }}"
+    dest: "{{ caddy_caddyfile }}"
+    owner: root
+    group: "{{ caddy_group }}"
+    mode: '0644'
+    validate: 'caddy validate --config %s --adapter caddyfile'
+  notify: reload caddy
+  when: caddy_caddyfile_template | length > 0

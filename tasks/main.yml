@@ -1,0 +1,8 @@
+---
+- name: Run install tasks
+  ansible.builtin.import_tasks: install.yml
+  tags: [caddy, install]
+
+- name: Run config tasks
+  ansible.builtin.import_tasks: config.yml
+  tags: [caddy, config]

@@ -1,0 +1,77 @@
+{
+{% if caddy_acme_email %}
+    email {{ caddy_acme_email }}
+{% endif %}
+{% if caddy_metrics_bind %}
+    servers {
+        metrics
+    }
+{% endif %}
+}
+
+{% for name, body in (caddy_snippets | default({})).items() %}
+# Reusable snippet — import with `import {{ name }}` from any site.
+({{ name }}) {
+{{ body | indent(4, first=True) }}
+}
+
+{% endfor %}
+{% if caddy_metrics_bind %}
+# Prometheus metrics endpoint — restricted to allowed IPs.
+{{ caddy_metrics_bind }}:{{ caddy_metrics_port }} {
+    bind {{ caddy_metrics_bind }}
+{% if caddy_metrics_allow_ips | length > 0 %}
+    @allowed remote_ip {{ caddy_metrics_allow_ips | join(' ') }}
+    handle @allowed {
+        handle /metrics {
+            metrics
+        }
+    }
+    handle {
+        respond "Forbidden" 403
+    }
+{% else %}
+    handle /metrics {
+        metrics
+    }
+{% endif %}
+}
+
+{% endif %}
+{% for site in caddy_sites %}
+{{ site.host }} {
+{% if site.allow_ips | default([]) | length > 0 %}
+    @allowed remote_ip {{ site.allow_ips | join(' ') }}
+    handle @allowed {
+        reverse_proxy {{ site.upstream }}
+    }
+    handle {
+        respond "Forbidden" 403
+    }
+{% else %}
+{% for p in site.protected_paths | default([]) %}
+{% set idx = loop.index %}
+{% set raw_path = p.path %}
+{% set base_path = raw_path[:-2] if raw_path.endswith('/*') else (raw_path[:-1] if raw_path.endswith('/') else raw_path) %}
+    @protected_{{ idx }} {
+        path {{ base_path }} {{ base_path }}/ {{ base_path }}/*
+        not remote_ip {{ p.allow_ips | join(' ') }}
+    }
+    handle @protected_{{ idx }} {
+        respond "Forbidden" 403
+    }
+{% endfor %}
+{% for snippet in site.import_snippets | default([]) %}
+    import {{ snippet }}
+{% endfor %}
+{% for file in site.import_files | default([]) %}
+    import {{ file }}
+{% endfor %}
+{% if site.extra_directives is defined %}
+{{ site.extra_directives | indent(4, first=True) }}
+{% endif %}
+    reverse_proxy {{ site.upstream }}
+{% endif %}
+}
+
+{% endfor %}
