@@ -1,4 +1,17 @@
 ---
+- name: Ensure declared Caddy access log files are writable by Caddy
+  ansible.builtin.file:
+    path: "{{ caddy_log_dir }}/{{ item.host }}.access.log"
+    state: touch
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: '0600'
+  loop: >-
+    {{ caddy_sites
+       | selectattr('access_log', 'defined')
+       | selectattr('access_log')
+       | list }}
+
 - name: Deploy Caddyfile from template
   ansible.builtin.template:
     src: "{{ caddy_caddyfile_template }}"

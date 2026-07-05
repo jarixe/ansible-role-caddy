@@ -58,6 +58,8 @@ caddy_acme_email: ""
 # List of reverse-proxy sites. Each entry supports:
 #   host:             required — public hostname
 #   upstream:         required — backend address (host:port)
+#   access_log:       optional — enable per-site JSON access log at
+#                                {{ caddy_log_dir }}/<host>.access.log
 #   allow_ips:        optional — whole-site IP allowlist (list of IPs/CIDRs)
 #   protected_paths:  optional — list of { path, allow_ips } for per-path restrictions
 #   import_snippets:  optional — list of caddy_snippets names to `import` into the site

@@ -40,6 +40,16 @@
 {% endif %}
 {% for site in caddy_sites %}
 {{ site.host }} {
+{% if site.access_log | default(false) %}
+    log {
+        output file {{ caddy_log_dir }}/{{ site.host }}.access.log {
+            roll_size 100MiB
+            roll_keep 7
+            roll_keep_for 48h
+        }
+        format json
+    }
+{% endif %}
 {% if site.allow_ips | default([]) | length > 0 %}
     @allowed remote_ip {{ site.allow_ips | join(' ') }}
     handle @allowed {
