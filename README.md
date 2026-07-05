@@ -47,6 +47,7 @@ ones:
 caddy_sites:
   - host: "app.example.com"          # required — public hostname
     upstream: "10.0.0.5:8080"        # required — backend host:port
+    access_log: true                  # optional — JSON access log under caddy_log_dir
     allow_ips:                        # optional — whole-site allowlist (403 otherwise)
       - 203.0.113.10
       - 10.0.0.0/24
@@ -64,6 +65,9 @@ caddy_sites:
 ```
 
 - `allow_ips` on the site → the whole site is locked to those clients.
+- `access_log: true` → the role pre-creates `{{ caddy_log_dir }}/<host>.access.log`
+  as `caddy:caddy` before reload and configures the site to write JSON access
+  logs there.
 - `protected_paths` → only those path prefixes are locked; the rest stays open.
   Each `path` is expanded to match `X`, `X/`, and `X/*`.
 - `import_snippets` → emits `import <name>` for each listed snippet (defined in
