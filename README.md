@@ -36,6 +36,7 @@ ones:
 | `caddy_sites` | `[]` | List of reverse-proxy sites (see below) |
 | `caddy_snippets` | `{}` | Named reusable Caddy snippets (see below) |
 | `caddy_acme_email` | `""` | ACME contact for Let's Encrypt |
+| `caddy_acme_dns` | `""` | Global DNS-01 provider + args (`acme_dns <value>`). Needed for wildcard certs and split-horizon/internal HTTPS |
 | `caddy_systemd_env` | `{}` | Env vars injected via a systemd drop-in |
 | `caddy_metrics_bind` | `""` | Bind address for the metrics server. `""` disables it |
 | `caddy_metrics_port` | `9090` | Metrics server port |
@@ -184,6 +185,45 @@ how the jjstreams playbook in this repo factors out its shared admin allowlist
         upstream: "127.0.0.1:8080"
   roles:
     - ansible-role-caddy
+```
+
+## Example: wildcard / DNS-01 certificates (split-horizon)
+
+Use the DNS-01 challenge when the certificate hostnames don't (or can't) resolve
+to this server publicly — wildcards, or an internal Caddy whose public A record
+points at an external ingress while an internal resolver overrides it to the LAN.
+`caddy_acme_dns` sets the challenge provider once, globally, so every site
+inherits it; no per-site `tls` block needed.
+
+The DNS provider module must be compiled in (`xcaddy`), and its API token passed
+through the systemd environment:
+
+```yaml
+- hosts: web
+  become: true
+  vars:
+    caddy_install_method: xcaddy
+    caddy_extra_modules:
+      - github.com/caddy-dns/cloudflare      # swap for your provider
+    caddy_systemd_env:
+      CF_API_TOKEN: "{{ vault_cf_token }}"    # keep in ansible-vault
+    caddy_acme_email: "admin@example.com"
+    caddy_acme_dns: "cloudflare {env.CF_API_TOKEN}"
+    caddy_sites:
+      - host: "*.home.example.com"           # wildcard now works
+        upstream: "127.0.0.1:8080"
+  roles:
+    - ansible-role-caddy
+```
+
+Renders as the global block below; the token is read from the service
+environment at runtime, never written into the Caddyfile:
+
+```caddy
+{
+    email admin@example.com
+    acme_dns cloudflare {env.CF_API_TOKEN}
+}
 ```
 
 ## Using your own Caddyfile
