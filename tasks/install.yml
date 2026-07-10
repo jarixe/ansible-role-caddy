@@ -45,6 +45,14 @@
 - name: Install Go for xcaddy build
   when: caddy_install_method == 'xcaddy'
   block:
+    - name: Install xcaddy build prerequisites
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - git
+        state: present
+        update_cache: true
+
     - name: Download Go tarball
       ansible.builtin.get_url:
         url: "https://go.dev/dl/go{{ caddy_go_version }}.linux-amd64.tar.gz"
@@ -58,6 +66,8 @@
         remote_src: true
         creates: /usr/local/go/bin/go
 
+# xcaddy and the go toolchain shell out to a bare `go`, so /usr/local/go/bin
+# must be on PATH for both tasks below.
 - name: Install xcaddy
   ansible.builtin.command:
     cmd: /usr/local/go/bin/go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
@@ -65,6 +75,7 @@
   environment:
     HOME: /root
     GOPATH: /root/go
+    PATH: "/usr/local/go/bin:{{ ansible_env.PATH | default('/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin') }}"
   when: caddy_install_method == 'xcaddy'
 
 - name: Build Caddy with extra modules
@@ -73,7 +84,11 @@
       /root/go/bin/xcaddy build
       {{ caddy_extra_modules | map('regex_replace', '^(.+)$', '--with \1') | join(' ') }}
       --output /usr/bin/caddy
-  environment: "{{ {'HOME': '/root', 'GOPATH': '/root/go'} | combine(caddy_xcaddy_env) }}"
+  environment: "{{ {
+      'HOME': '/root',
+      'GOPATH': '/root/go',
+      'PATH': '/usr/local/go/bin:' ~ (ansible_env.PATH | default('/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')),
+    } | combine(caddy_xcaddy_env) }}"
   when:
     - caddy_install_method == 'xcaddy'
     - caddy_extra_modules | length > 0
