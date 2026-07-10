@@ -73,9 +73,7 @@
       /root/go/bin/xcaddy build
       {{ caddy_extra_modules | map('regex_replace', '^(.+)$', '--with \1') | join(' ') }}
       --output /usr/bin/caddy
-  environment:
-    HOME: /root
-    GOPATH: /root/go
+  environment: "{{ {'HOME': '/root', 'GOPATH': '/root/go'} | combine(caddy_xcaddy_env) }}"
   when:
     - caddy_install_method == 'xcaddy'
     - caddy_extra_modules | length > 0

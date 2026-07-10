@@ -32,6 +32,7 @@ ones:
 | `caddy_install_method` | `apt` | `apt` or `xcaddy` |
 | `caddy_extra_modules` | `[]` | Module import paths, only used with `xcaddy` |
 | `caddy_go_version` | `"1.22"` | Go toolchain for `xcaddy` builds |
+| `caddy_xcaddy_env` | `{}` | Extra env for the `xcaddy` build (e.g. `GOPRIVATE` for private modules) |
 | `caddy_caddyfile_template` | `Caddyfile.j2` | Template to render. `""` skips deployment (caller manages the Caddyfile) |
 | `caddy_sites` | `[]` | List of reverse-proxy sites (see below) |
 | `caddy_snippets` | `{}` | Named reusable Caddy snippets (see below) |
