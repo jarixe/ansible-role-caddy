@@ -16,6 +16,14 @@ caddy_extra_modules: []
 # Go version to install when using xcaddy (ignored for apt)
 caddy_go_version: "1.22"
 
+# Extra environment variables for the xcaddy build command, merged over the
+# defaults (HOME, GOPATH). Needed e.g. to build private modules:
+#   caddy_xcaddy_env:
+#     GOPRIVATE: "github.com/myuser/*"
+# (git credentials for the private fetch must be provided separately,
+# e.g. a /root/.netrc deployed by the calling playbook)
+caddy_xcaddy_env: {}
+
 # ----------------------------------------------------------------------------
 # Paths & ownership
 # ----------------------------------------------------------------------------
