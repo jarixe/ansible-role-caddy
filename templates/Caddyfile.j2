@@ -2,6 +2,9 @@
 {% if caddy_acme_email %}
     email {{ caddy_acme_email }}
 {% endif %}
+{% if caddy_acme_dns %}
+    acme_dns {{ caddy_acme_dns }}
+{% endif %}
 {% if caddy_metrics_bind %}
     servers {
         metrics

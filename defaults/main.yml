@@ -51,6 +51,21 @@ caddy_systemd_env: {}
 
 caddy_acme_email: ""
 
+# Global ACME DNS-01 challenge provider, written verbatim as the global
+# `acme_dns <value>` option. When set, every managed site obtains its
+# certificate over DNS-01 instead of HTTP/TLS-ALPN — required for wildcard
+# hosts and for hosts whose public A record does not point at this server
+# (e.g. split-horizon / internal HTTPS behind an external ingress).
+#
+# The referenced DNS provider module must be compiled in via
+# caddy_install_method: xcaddy + caddy_extra_modules, and any API token
+# supplied through caddy_systemd_env. Example (Cloudflare):
+#   caddy_install_method: xcaddy
+#   caddy_extra_modules: [github.com/caddy-dns/cloudflare]
+#   caddy_systemd_env: { CF_API_TOKEN: "{{ vault_cf_token }}" }
+#   caddy_acme_dns: "cloudflare {env.CF_API_TOKEN}"
+caddy_acme_dns: ""
+
 # ----------------------------------------------------------------------------
 # Sites
 # ----------------------------------------------------------------------------
