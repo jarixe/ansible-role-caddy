@@ -78,17 +78,33 @@
     PATH: "/usr/local/go/bin:{{ ansible_env.PATH | default('/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin') }}"
   when: caddy_install_method == 'xcaddy'
 
+# Build to a staging path, then install via checksum-aware copy: the
+# restart handler only fires when the binary actually changed, and the
+# live binary is never half-written if the build dies midway.
 - name: Build Caddy with extra modules
   ansible.builtin.command:
     cmd: >
       /root/go/bin/xcaddy build
       {{ caddy_extra_modules | map('regex_replace', '^(.+)$', '--with \1') | join(' ') }}
-      --output /usr/bin/caddy
+      --output /root/go/caddy-staging
   environment: "{{ {
       'HOME': '/root',
       'GOPATH': '/root/go',
       'PATH': '/usr/local/go/bin:' ~ (ansible_env.PATH | default('/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')),
     } | combine(caddy_xcaddy_env) }}"
+  changed_when: false
+  when:
+    - caddy_install_method == 'xcaddy'
+    - caddy_extra_modules | length > 0
+
+- name: Install built Caddy binary
+  ansible.builtin.copy:
+    src: /root/go/caddy-staging
+    dest: /usr/bin/caddy
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
   when:
     - caddy_install_method == 'xcaddy'
     - caddy_extra_modules | length > 0

@@ -1,11 +1,14 @@
 ---
-- name: reload caddy
-  ansible.builtin.systemd:
-    name: caddy
-    state: reloaded
-
+# Order matters: handlers run in definition order. A binary swap must
+# restart before any config reload — the running (old) process may not
+# know modules the new config needs, so reload-first fails the play.
 - name: restart caddy
   ansible.builtin.systemd:
     name: caddy
     state: restarted
     daemon_reload: true
+
+- name: reload caddy
+  ansible.builtin.systemd:
+    name: caddy
+    state: reloaded
