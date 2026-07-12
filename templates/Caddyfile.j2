@@ -83,7 +83,15 @@
 {% if site.extra_directives is defined %}
 {{ site.extra_directives | indent(4, first=True) }}
 {% endif %}
+{% if site.upstream_tls_skip_verify | default(false) %}
+    reverse_proxy {{ site.upstream }} {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
+{% else %}
     reverse_proxy {{ site.upstream }}
+{% endif %}
 {% endif %}
 }
 

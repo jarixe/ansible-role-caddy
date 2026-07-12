@@ -49,6 +49,7 @@ ones:
 caddy_sites:
   - host: "app.example.com"          # required — public hostname
     upstream: "10.0.0.5:8080"        # required — backend host:port
+    upstream_tls_skip_verify: true    # optional — proxy over HTTPS to a self-signed upstream
     access_log: true                  # optional — JSON access log under caddy_log_dir
     allow_ips:                        # optional — whole-site allowlist (403 otherwise)
       - 203.0.113.10
@@ -67,6 +68,10 @@ caddy_sites:
 ```
 
 - `allow_ips` on the site → the whole site is locked to those clients.
+- `upstream_tls_skip_verify: true` → the upstream is spoken to over HTTPS with a
+  `transport http { tls_insecure_skip_verify }` block, so Caddy accepts a
+  self-signed or hostname-mismatched backend cert (e.g. Proxmox on `:8006`, PBS
+  on `:8007`). Omit it (default `false`) for the plain `reverse_proxy`.
 - `access_log: true` → the role pre-creates `{{ caddy_log_dir }}/<host>.access.log`
   as `caddy:caddy` before reload and configures the site to write JSON access
   logs there.
