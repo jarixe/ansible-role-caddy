@@ -3,7 +3,8 @@
 Installs and configures the [Caddy](https://caddyserver.com/) reverse proxy on
 Debian. Ships a generic Caddyfile template that turns a list of sites into
 reverse-proxy blocks with optional IP allowlists, per-path restrictions, an
-imported runtime blocklist, and a Prometheus metrics endpoint.
+imported runtime blocklist, a Prometheus metrics endpoint, and multi-backend
+load balancing with health checks.
 
 Two install paths:
 
@@ -48,7 +49,7 @@ ones:
 ```yaml
 caddy_sites:
   - host: "app.example.com"          # required — public hostname
-    upstream: "10.0.0.5:8080"        # required — backend host:port
+    upstream: "10.0.0.5:8080"        # required unless `upstreams` is set
     upstream_tls_skip_verify: true    # optional — proxy over HTTPS to a self-signed upstream
     access_log: true                  # optional — JSON access log under caddy_log_dir
     allow_ips:                        # optional — whole-site allowlist (403 otherwise)
@@ -72,6 +73,66 @@ caddy_sites:
   `transport http { tls_insecure_skip_verify }` block, so Caddy accepts a
   self-signed or hostname-mismatched backend cert (e.g. Proxmox on `:8006`, PBS
   on `:8007`). Omit it (default `false`) for the plain `reverse_proxy`.
+
+### Multiple backends, load balancing & health checks
+
+```yaml
+caddy_sites:
+  - host: "app.example.com"
+    upstreams:                        # optional — list of backends; overrides `upstream`
+      - "10.0.0.10:8080"
+      - "10.0.0.11:8080"
+      - "10.0.0.12:8080"
+    lb_policy: round_robin            # optional — see policies below
+    lb_try_duration: "5s"             # optional — total retry window on failure
+    lb_try_interval: "250ms"          # optional — delay between retries
+    health_check:                     # optional — active + passive health checks
+      uri: /healthz                   # active: path Caddy polls periodically
+      interval: 10s
+      timeout: 5s
+      expect_status: 200
+      expect_body: "OK"
+      fail_duration: 30s              # passive: count failures on live traffic
+      max_fails: 2
+      unhealthy_status: [500, 503]
+      unhealthy_latency: 1s
+      unhealthy_request_count: 1
+```
+
+- `upstreams` → a list of `host:port` backends. When set (non-empty), it's used
+  instead of `upstream`; a single `upstream` still works unchanged for the
+  common one-backend case, so nothing above needs to migrate.
+- `lb_policy` → written verbatim as `lb_policy <value>`, so any policy Caddy
+  supports works, including:
+  - `round_robin` — Caddy's default; only need to set this explicitly to be
+    explicit about it.
+  - `random`, `random_choose <n>` — spread load randomly.
+  - `least_conn` — send to the backend with the fewest active requests.
+  - `first` — always prefer the first available backend (hot standby).
+  - `ip_hash` — sticky by client IP: the same client keeps hitting the same
+    backend as long as it stays healthy.
+  - `uri_hash` — sticky by request URI (useful for caching proxies).
+  - `header <field>` — sticky by a request header value.
+  - `cookie [<name> [<secret>]]` — sticky sessions via cookie: Caddy sets a
+    cookie on the first response and routes that client to the same backend
+    for the life of the session. Use this when the app keeps in-memory state
+    per backend (websockets, server-side sessions) and can't tolerate a
+    client bouncing between instances.
+- `lb_try_duration` / `lb_try_interval` → control how long/often Caddy retries
+  a request against another backend after a failure, before giving up.
+- `health_check.{uri,port,interval,timeout,expect_status,expect_body}` →
+  **active** health checks: Caddy polls each backend on its own schedule and
+  takes it out of rotation on failure, independent of live traffic.
+- `health_check.{fail_duration,max_fails,unhealthy_status,unhealthy_latency,unhealthy_request_count}`
+  → **passive** health checks: Caddy watches live request outcomes and
+  temporarily marks a backend unhealthy after it crosses the given
+  thresholds. Cheaper than active checks (no extra polling traffic) and
+  usually enough unless you need to catch a dead backend before real traffic
+  hits it.
+- All of the above are optional and independent — set only what you need.
+  `upstreams` with none of the load-balancing/health-check fields renders a
+  plain `reverse_proxy a b c` line, letting Caddy round-robin with its
+  built-in defaults.
 - `access_log: true` → the role pre-creates `{{ caddy_log_dir }}/<host>.access.log`
   as `caddy:caddy` before reload and configures the site to write JSON access
   logs there.
@@ -175,6 +236,46 @@ how the jjstreams playbook in this repo factors out its shared admin allowlist
         upstream: "127.0.0.1:8080"
   roles:
     - ansible-role-caddy
+```
+
+## Example: load-balanced app with sticky sessions
+
+```yaml
+- hosts: web
+  become: true
+  vars:
+    caddy_sites:
+      - host: "app.example.com"
+        upstreams:
+          - "10.0.0.10:8080"
+          - "10.0.0.11:8080"
+          - "10.0.0.12:8080"
+        lb_policy: "cookie app_session"   # sticky sessions via cookie
+        health_check:
+          uri: /healthz
+          interval: 10s
+          timeout: 5s
+          expect_status: 200
+          fail_duration: 30s
+          max_fails: 2
+  roles:
+    - ansible-role-caddy
+```
+
+Renders as:
+
+```caddy
+app.example.com {
+    reverse_proxy 10.0.0.10:8080 10.0.0.11:8080 10.0.0.12:8080 {
+        lb_policy cookie app_session
+        health_uri /healthz
+        health_interval 10s
+        health_timeout 5s
+        health_status 200
+        fail_duration 30s
+        max_fails 2
+    }
+}
 ```
 
 ## Example: custom binary with a DNS module

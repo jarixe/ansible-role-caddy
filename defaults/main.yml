@@ -80,7 +80,26 @@ caddy_acme_dns: ""
 
 # List of reverse-proxy sites. Each entry supports:
 #   host:             required — public hostname
-#   upstream:         required — backend address (host:port)
+#   upstream:         required unless `upstreams` is set — single backend address
+#                                (host:port)
+#   upstreams:        optional — list of backend addresses for load balancing across
+#                                multiple backends. Takes precedence over `upstream`
+#                                when non-empty.
+#   lb_policy:         optional — load-balancing policy, written verbatim as
+#                                `lb_policy <value>`, e.g. `round_robin` (Caddy's
+#                                default when omitting this), `random`, `least_conn`,
+#                                `ip_hash`, `uri_hash`, `header <field>`, or
+#                                `cookie [<name> [<secret>]]` for sticky sessions.
+#   lb_try_duration:   optional — total time to keep trying upstreams on failure,
+#                                e.g. `5s`
+#   lb_try_interval:   optional — time to wait between retries, e.g. `250ms`
+#   health_check:      optional — dict of active/passive health-check settings, all
+#                                optional:
+#                                  uri, port, interval, timeout, expect_status,
+#                                  expect_body            (active checks)
+#                                  fail_duration, max_fails, unhealthy_status,
+#                                  unhealthy_latency, unhealthy_request_count
+#                                                          (passive checks)
 #   access_log:       optional — enable per-site JSON access log at
 #                                {{ caddy_log_dir }}/<host>.access.log
 #   allow_ips:        optional — whole-site IP allowlist (list of IPs/CIDRs)

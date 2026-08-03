@@ -1,3 +1,61 @@
+{% macro reverse_proxy_block(site) -%}
+{%- set upstream_list = site.upstreams if (site.upstreams is defined and site.upstreams | length > 0) else [site.upstream] -%}
+{%- set hc = site.health_check | default({}) -%}
+{%- set needs_block = (site.upstream_tls_skip_verify | default(false)) or (site.lb_policy is defined) or (site.lb_try_duration is defined) or (site.lb_try_interval is defined) or (hc | length > 0) -%}
+{% if needs_block %}
+reverse_proxy {{ upstream_list | join(' ') }} {
+{% if site.upstream_tls_skip_verify | default(false) %}
+    transport http {
+        tls_insecure_skip_verify
+    }
+{% endif %}
+{% if site.lb_policy is defined %}
+    lb_policy {{ site.lb_policy }}
+{% endif %}
+{% if site.lb_try_duration is defined %}
+    lb_try_duration {{ site.lb_try_duration }}
+{% endif %}
+{% if site.lb_try_interval is defined %}
+    lb_try_interval {{ site.lb_try_interval }}
+{% endif %}
+{% if hc.uri is defined %}
+    health_uri {{ hc.uri }}
+{% endif %}
+{% if hc.port is defined %}
+    health_port {{ hc.port }}
+{% endif %}
+{% if hc.interval is defined %}
+    health_interval {{ hc.interval }}
+{% endif %}
+{% if hc.timeout is defined %}
+    health_timeout {{ hc.timeout }}
+{% endif %}
+{% if hc.expect_status is defined %}
+    health_status {{ hc.expect_status }}
+{% endif %}
+{% if hc.expect_body is defined %}
+    health_body {{ hc.expect_body }}
+{% endif %}
+{% if hc.fail_duration is defined %}
+    fail_duration {{ hc.fail_duration }}
+{% endif %}
+{% if hc.max_fails is defined %}
+    max_fails {{ hc.max_fails }}
+{% endif %}
+{% if hc.unhealthy_status is defined %}
+    unhealthy_status {{ hc.unhealthy_status if hc.unhealthy_status is string else hc.unhealthy_status | join(' ') }}
+{% endif %}
+{% if hc.unhealthy_latency is defined %}
+    unhealthy_latency {{ hc.unhealthy_latency }}
+{% endif %}
+{% if hc.unhealthy_request_count is defined %}
+    unhealthy_request_count {{ hc.unhealthy_request_count }}
+{% endif %}
+}
+{%- else -%}
+reverse_proxy {{ upstream_list | join(' ') }}
+{%- endif -%}
+{% endmacro -%}
 {
 {% if caddy_acme_email %}
     email {{ caddy_acme_email }}
@@ -56,7 +114,7 @@
 {% if site.allow_ips | default([]) | length > 0 %}
     @allowed remote_ip {{ site.allow_ips | join(' ') }}
     handle @allowed {
-        reverse_proxy {{ site.upstream }}
+        {{ reverse_proxy_block(site) | trim | indent(8) }}
     }
     handle {
         respond "Forbidden" 403
@@ -83,15 +141,7 @@
 {% if site.extra_directives is defined %}
 {{ site.extra_directives | indent(4, first=True) }}
 {% endif %}
-{% if site.upstream_tls_skip_verify | default(false) %}
-    reverse_proxy {{ site.upstream }} {
-        transport http {
-            tls_insecure_skip_verify
-        }
-    }
-{% else %}
-    reverse_proxy {{ site.upstream }}
-{% endif %}
+    {{ reverse_proxy_block(site) | trim | indent(4) }}
 {% endif %}
 }
 
