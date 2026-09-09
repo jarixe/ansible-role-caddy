@@ -27,7 +27,7 @@ caddy_version: ""
 # Go version to install when using xcaddy (ignored for apt). Must be new
 # enough for the Caddy version being built; too old is a build failure.
 # Bumping this replaces an already-installed toolchain.
-caddy_go_version: "1.22"
+caddy_go_version: "1.27.1"
 
 # Optional checksum for the Go tarball, in ansible.builtin.get_url format
 # ("sha256:<hex>"). Empty skips verification. The published value lives at
@@ -50,6 +50,11 @@ caddy_xcaddy_version: latest
 # skippable: as long as it matches the requested version, module list and Go
 # version, the build is not re-run.
 caddy_build_dir: /usr/local/src/caddy
+
+# Disposable workspace for GOPATH, module/build caches and xcaddy's temporary
+# build environment. It is removed after every build attempt, including failed
+# builds, so repeated upgrades cannot fill the host with stale Go artifacts.
+caddy_build_workspace: "{{ caddy_build_dir }}/workspace"
 
 # Extra environment variables for the xcaddy build command, merged over the
 # defaults (HOME, GOPATH, PATH). Needed e.g. to build private modules:

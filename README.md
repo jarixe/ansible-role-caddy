@@ -36,11 +36,12 @@ ones:
 | `caddy_apt_repo_url` | cloudsmith | Base URL of Caddy's apt repository |
 | `caddy_extra_modules` | `[]` | Module import paths, only used with `xcaddy` |
 | `caddy_version` | `""` | Caddy git tag to build. Empty builds whatever is latest — pin it for anything serving traffic |
-| `caddy_go_version` | `"1.22"` | Go toolchain for `xcaddy` builds. Bumping it replaces an installed toolchain |
+| `caddy_go_version` | `"1.27.1"` | Go toolchain for `xcaddy` builds. Bumping it replaces an installed toolchain |
 | `caddy_go_checksum` | `""` | Optional `sha256:…` for the Go tarball |
 | `caddy_go_arch_map` | amd64/arm64 | `ansible_facts.architecture` → Go release architecture |
 | `caddy_xcaddy_version` | `latest` | xcaddy version used as the build tool |
 | `caddy_build_dir` | `/usr/local/src/caddy` | Staging binary + `build.stamp` for the rebuild decision |
+| `caddy_build_workspace` | `<caddy_build_dir>/workspace` | Disposable Go caches and build files; removed after every build attempt |
 | `caddy_xcaddy_env` | `{}` | Extra env for the `xcaddy` build (e.g. `GOPRIVATE` for private modules) |
 | `caddy_caddyfile_template` | `Caddyfile.j2` | Template to render. `""` skips deployment (caller manages the Caddyfile) |
 | `caddy_sites` | `[]` | List of reverse-proxy sites (see below) |

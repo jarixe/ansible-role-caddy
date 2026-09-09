@@ -32,3 +32,15 @@
       No Go release architecture mapped for
       '{{ ansible_facts.architecture }}'. Extend caddy_go_arch_map.
   when: caddy_install_method == 'xcaddy'
+
+- name: Verify the disposable build workspace is safely scoped
+  ansible.builtin.assert:
+    that:
+      - caddy_build_dir != '/'
+      - caddy_build_workspace != '/'
+      - caddy_build_workspace != caddy_build_dir
+      - caddy_build_workspace.startswith(caddy_build_dir.rstrip('/') ~ '/')
+    fail_msg: >-
+      caddy_build_workspace must be a child of caddy_build_dir because it is
+      recursively removed after every build attempt.
+  when: caddy_install_method == 'xcaddy'

@@ -82,6 +82,8 @@
         caddy_build_signature: >-
           caddy={{ caddy_version | default('latest', true) }}
           go={{ caddy_go_version }}
+          go_arch={{ caddy_go_arch_map[ansible_facts.architecture] }}
+          xcaddy={{ caddy_xcaddy_version }}
           modules={{ caddy_extra_modules | sort | join(',') }}
 
     # xcaddy and the go toolchain shell out to a bare `go`, so the toolchain
@@ -94,7 +96,13 @@
     - name: Compose the build environment
       ansible.builtin.set_fact:
         caddy_build_env: >-
-          {{ {'HOME': '/root', 'GOPATH': '/root/go', 'PATH': caddy_build_path}
+          {{ {'HOME': '/root',
+              'GOPATH': caddy_build_workspace ~ '/go',
+              'GOMODCACHE': caddy_build_workspace ~ '/go/pkg/mod',
+              'GOCACHE': caddy_build_workspace ~ '/go-build',
+              'GOTOOLCHAIN': 'local',
+              'TMPDIR': caddy_build_workspace ~ '/tmp',
+              'PATH': caddy_build_path}
              | combine(caddy_xcaddy_env) }}
 
     - name: Check for an installed Caddy binary
@@ -127,9 +135,24 @@
              else 'Caddy already built from ' ~ (caddy_build_signature | trim)
                   ~ ', skipping build' }}
 
-    - name: Install the Go toolchain
-      when: caddy_build_required | bool
+    - name: Build and install the requested Caddy binary
+      when:
+        - caddy_build_required | bool
+        - not ansible_check_mode
       block:
+        - name: Remove workspace left by an interrupted build
+          ansible.builtin.file:
+            path: "{{ caddy_build_workspace }}"
+            state: absent
+
+        - name: Create the temporary build directory
+          ansible.builtin.file:
+            path: "{{ caddy_build_workspace }}/tmp"
+            state: directory
+            owner: root
+            group: root
+            mode: "0700"
+
         # `creates:` used to guard the extraction, which meant a bumped
         # caddy_go_version was downloaded and then never unpacked on any host
         # that already had a toolchain. Compare the installed version instead.
@@ -152,7 +175,7 @@
             url: >-
               https://go.dev/dl/go{{ caddy_go_version }}.linux-{{
               caddy_go_arch_map[ansible_facts.architecture] }}.tar.gz
-            dest: "{{ caddy_build_dir }}/go{{ caddy_go_version }}.tar.gz"
+            dest: "{{ caddy_build_workspace }}/go{{ caddy_go_version }}.tar.gz"
             checksum: "{{ caddy_go_checksum | default(omit, true) }}"
             owner: root
             group: root
@@ -162,19 +185,11 @@
 
         - name: Extract Go
           ansible.builtin.unarchive:
-            src: "{{ caddy_build_dir }}/go{{ caddy_go_version }}.tar.gz"
+            src: "{{ caddy_build_workspace }}/go{{ caddy_go_version }}.tar.gz"
             dest: /usr/local
             remote_src: true
             creates: /usr/local/go/bin/go
 
-        - name: Remove the Go tarball
-          ansible.builtin.file:
-            path: "{{ caddy_build_dir }}/go{{ caddy_go_version }}.tar.gz"
-            state: absent
-
-    - name: Build and install Caddy
-      when: caddy_build_required | bool
-      block:
         - name: Install xcaddy build prerequisites
           ansible.builtin.apt:
             name:
@@ -185,14 +200,24 @@
             cache_valid_time: "{{ caddy_apt_cache_valid_time }}"
             lock_timeout: "{{ caddy_apt_lock_timeout }}"
 
+        # Cleanup runs in the same shell on failure. This still works when a
+        # full filesystem prevents Ansible from uploading its next module.
         - name: Install xcaddy
-          ansible.builtin.command: >-
-            /usr/local/go/bin/go install
-            github.com/caddyserver/xcaddy/cmd/xcaddy@{{ caddy_xcaddy_version }}
-          environment:
-            HOME: /root
-            GOPATH: /root/go
-            PATH: "{{ caddy_build_path }}"
+          ansible.builtin.shell:
+            cmd: |
+              set -eu
+              cleanup_on_failure() {
+                rc=$?
+                if [ "$rc" -ne 0 ]; then
+                  rm -rf -- {{ caddy_build_workspace | quote }}
+                fi
+                exit "$rc"
+              }
+              trap cleanup_on_failure EXIT
+              /usr/local/go/bin/go install \
+                github.com/caddyserver/xcaddy/cmd/xcaddy@{{ caddy_xcaddy_version | quote }}
+            executable: /bin/sh
+          environment: "{{ caddy_build_env }}"
           changed_when: true
 
         # Builds to a staging path, then installs via checksum-aware copy: the
@@ -201,11 +226,16 @@
         # itself touches nothing outside the build directory, hence
         # changed_when: false — the copy below reports the real change.
         - name: Build Caddy with extra modules
-          ansible.builtin.command:
-            cmd: >-
-              /root/go/bin/xcaddy build {{ caddy_version }}
-              {{ caddy_extra_modules | map('regex_replace', '^(.+)$', '--with \1') | join(' ') }}
-              --output {{ caddy_build_dir }}/caddy-staging
+          ansible.builtin.shell:
+            cmd: |
+              set -eu
+              trap 'rm -rf -- {{ caddy_build_workspace | quote }}' EXIT
+              {{ (caddy_build_workspace ~ '/go/bin/xcaddy') | quote }} build {{ caddy_version | quote }} \
+              {% for module in caddy_extra_modules %}
+                --with {{ module | quote }} \
+              {% endfor %}
+                --output {{ (caddy_build_dir ~ '/caddy-staging') | quote }}
+            executable: /bin/sh
           environment: "{{ caddy_build_env }}"
           changed_when: false
 
@@ -228,6 +258,17 @@
             owner: root
             group: root
             mode: "0644"
+
+      always:
+        - name: Remove temporary xcaddy build workspace
+          ansible.builtin.file:
+            path: "{{ caddy_build_workspace }}"
+            state: absent
+
+        - name: Remove staged Caddy binary
+          ansible.builtin.file:
+            path: "{{ caddy_build_dir }}/caddy-staging"
+            state: absent
 
     - name: Ensure caddy group exists (xcaddy does not create it)
       ansible.builtin.group:
