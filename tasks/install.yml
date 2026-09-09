@@ -93,6 +93,12 @@
         caddy_build_path: >-
           /usr/local/go/bin:{{ ansible_env.PATH | default('/usr/bin:/bin', true) }}
 
+    # TMPDIR is deliberately absent here and exported inside the build scripts
+    # instead. A task-level environment also applies to the AnsiballZ wrapper,
+    # which unpacks its payload under TMPDIR — so pointing it into the
+    # workspace made the scripts' cleanup delete the running module out from
+    # under itself, and every result came back as "No start of json char
+    # found" with the real build error gone.
     - name: Compose the build environment
       ansible.builtin.set_fact:
         caddy_build_env: >-
@@ -101,7 +107,6 @@
               'GOMODCACHE': caddy_build_workspace ~ '/go/pkg/mod',
               'GOCACHE': caddy_build_workspace ~ '/go-build',
               'GOTOOLCHAIN': 'local',
-              'TMPDIR': caddy_build_workspace ~ '/tmp',
               'PATH': caddy_build_path}
              | combine(caddy_xcaddy_env) }}
 
@@ -206,10 +211,11 @@
           ansible.builtin.shell:
             cmd: |
               set -eu
+              export TMPDIR={{ (caddy_build_workspace ~ '/tmp') | quote }}
               cleanup_on_failure() {
                 rc=$?
                 if [ "$rc" -ne 0 ]; then
-                  rm -rf -- {{ caddy_build_workspace | quote }}
+                  rm -rf -- {{ caddy_build_workspace | quote }} || true
                 fi
                 exit "$rc"
               }
@@ -229,7 +235,13 @@
           ansible.builtin.shell:
             cmd: |
               set -eu
-              trap 'rm -rf -- {{ caddy_build_workspace | quote }}' EXIT
+              export TMPDIR={{ (caddy_build_workspace ~ '/tmp') | quote }}
+              cleanup() {
+                rc=$?
+                rm -rf -- {{ caddy_build_workspace | quote }} || true
+                exit "$rc"
+              }
+              trap cleanup EXIT
               {{ (caddy_build_workspace ~ '/go/bin/xcaddy') | quote }} build {{ caddy_version | quote }} \
               {% for module in caddy_extra_modules %}
                 --with {{ module | quote }} \
