@@ -31,6 +31,8 @@ argument_specs:
         type: str
       caddy_build_dir:
         type: path
+      caddy_build_workspace:
+        type: path
       caddy_xcaddy_env:
         type: dict
       caddy_apt_cache_valid_time:

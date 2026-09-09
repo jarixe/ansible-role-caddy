@@ -45,9 +45,24 @@
         that:
           - "'caddy=v2.11.4' in caddy_verify_stamp"
           - "'go=1.26.7' in caddy_verify_stamp"
+          - "'go_arch=amd64' in caddy_verify_stamp"
+          - "'xcaddy=v0.4.7' in caddy_verify_stamp"
           - "'modules=github.com/pberkel/caddy-storage-redis' in caddy_verify_stamp"
       vars:
         caddy_verify_stamp: "{{ caddy_verify_files.results[0].content | b64decode }}"
+
+    - name: Check for persistent xcaddy build artifacts
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/local/src/caddy/workspace
+        - /usr/local/src/caddy/caddy-staging
+      register: caddy_verify_build_artifacts
+
+    - name: Verify xcaddy build artifacts were cleaned
+      ansible.builtin.assert:
+        that:
+          - caddy_verify_build_artifacts.results | map(attribute='stat.exists') | select | list | length == 0
 
     # --environ prints every variable in the drop-in — which is the documented
     # home for ACME provider tokens — into the journal on every start.
