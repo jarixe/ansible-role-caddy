@@ -43,6 +43,13 @@
         # rendered block is checked against Caddy's own validator rather than
         # against what the directive names were assumed to be.
         lb_policy: ip_hash
+        request_affinity:
+          enabled: false
+          header: X-Disabled-Affinity-Key
+          fallback_policy: least_conn
+          rules:
+            - name: disabled_user
+              pattern: ^/disabled/(?P<key>[^/]+)(?:/|$)
         lb_try_duration: 5s
         lb_try_interval: 250ms
         health_uri: /healthz
@@ -75,6 +82,24 @@
         health_uri: /healthz
         health_interval: 10s
         fail_duration: 30s
+
+      # Path-derived affinity strips spoofed client input, hashes the named
+      # capture, and falls back explicitly for unmatched paths.
+      - host: http://affinity.example.invalid
+        upstream: 127.0.0.1:8081 127.0.0.1:8082
+        request_affinity:
+          header: X-Role-Affinity-Key
+          # The apt scenario currently receives Caddy 2.6, from before custom
+          # fallback blocks. The pinned production-version scenario covers a
+          # non-default least_conn fallback separately.
+          fallback_policy: random
+          rules:
+            - name: test_user
+              pattern: ^/user/(?P<key>[^/]+)(?:/|$)
+        health_uri: /healthz
+        fail_duration: 30s
+        extra_directives: |
+          respond /private "Forbidden" 403
 
       # Allowlisted site that does NOT include the test client.
       - host: http://denied.example.invalid

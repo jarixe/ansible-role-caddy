@@ -179,6 +179,13 @@ caddy_global_extra: ""
 #   lb_policy:        optional — Caddy load balancing policy across multiple
 #                                upstreams (round_robin, least_conn, ip_hash,
 #                                cookie, ...). Default is Caddy's own (random).
+#   request_affinity: optional — derive a sticky key from named path-regexp
+#                                captures and hash an internal request header.
+#                                Every rule pattern must capture (?P<key>...).
+#                                The role strips the header before and after
+#                                selection so clients cannot spoof it and the
+#                                upstream never receives it. Mutually exclusive
+#                                with lb_policy when enabled.
 #   health_uri:       optional — path for ACTIVE health checks. Without it
 #                                Caddy only marks an upstream down after a
 #                                request to it has already failed (passive),

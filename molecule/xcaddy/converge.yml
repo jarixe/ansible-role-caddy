@@ -44,5 +44,18 @@
       # storage module above.
       - host: tls.example.invalid
         upstream: 127.0.0.1:8081
+
+      # Validate the non-default fallback syntax against the exact Caddy
+      # release used by production, not the older package in the apt scenario.
+      - host: http://affinity.example.invalid
+        upstream: 127.0.0.1:8081 127.0.0.1:8082
+        request_affinity:
+          header: X-Role-Affinity-Key
+          fallback_policy: least_conn
+          rules:
+            - name: test_user
+              pattern: ^/user/(?P<key>[^/]+)(?:/|$)
+        extra_directives: |
+          respond /private "Forbidden" 403
   roles:
     - role: "{{ playbook_dir }}/../.."  # noqa: role-name[path]

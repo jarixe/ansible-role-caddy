@@ -78,6 +78,28 @@ argument_specs:
             required: true
           lb_policy:
             type: str
+          request_affinity:
+            type: dict
+            options:
+              enabled:
+                type: bool
+                default: true
+              header:
+                type: str
+                required: true
+              fallback_policy:
+                type: str
+                required: true
+              rules:
+                type: list
+                elements: dict
+                options:
+                  name:
+                    type: str
+                    required: true
+                  pattern:
+                    type: str
+                    required: true
           lb_retries:
             type: int
           lb_try_duration:

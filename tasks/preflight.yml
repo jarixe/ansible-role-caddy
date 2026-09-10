@@ -44,3 +44,30 @@
       caddy_build_workspace must be a child of caddy_build_dir because it is
       recursively removed after every build attempt.
   when: caddy_install_method == 'xcaddy'
+
+- name: Verify request-affinity configuration
+  ansible.builtin.assert:
+    that:
+      - item.lb_policy is not defined
+      - item.request_affinity.header | length > 0
+      - item.request_affinity.rules | length > 0
+      - >-
+        item.request_affinity.rules
+        | map(attribute='name')
+        | unique
+        | length == item.request_affinity.rules | length
+      - >-
+        item.request_affinity.rules
+        | selectattr('pattern', 'search', '\(\?P<key>')
+        | list
+        | length == item.request_affinity.rules | length
+    fail_msg: >-
+      Enabled request_affinity requires a non-empty internal header, unique
+      rule names, a named (?P<key>...) capture in every pattern, and no
+      separate lb_policy.
+  loop: "{{ caddy_sites }}"
+  loop_control:
+    label: "{{ item.host }}"
+  when:
+    - item.request_affinity is defined
+    - item.request_affinity.enabled | default(true) | bool

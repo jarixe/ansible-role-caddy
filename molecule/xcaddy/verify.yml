@@ -24,6 +24,7 @@
       loop:
         - /usr/local/src/caddy/build.stamp
         - /etc/systemd/system/caddy.service
+        - /etc/caddy/Caddyfile
 
     - name: Read the installed Go version
       ansible.builtin.command: /usr/local/go/bin/go version
@@ -78,6 +79,27 @@
         caddy_verify_unit: "{{ caddy_verify_files.results[1].content | b64decode }}"
         caddy_verify_exec_lines: >-
           {{ caddy_verify_unit | regex_findall('^Exec.*$', multiline=True) }}
+
+    - name: Verify request affinity uses the configured fallback
+      ansible.builtin.assert:
+        that:
+          - "'request_header -X-Role-Affinity-Key' in caddy_verify_caddyfile"
+          - >-
+            'request_header @request_affinity_1 X-Role-Affinity-Key
+            {re.test_user.key}' in caddy_verify_caddyfile
+          - "'lb_policy header X-Role-Affinity-Key' in caddy_verify_caddyfile"
+          - "'fallback least_conn' in caddy_verify_caddyfile"
+          - "'header_up -X-Role-Affinity-Key' in caddy_verify_caddyfile"
+      vars:
+        caddy_verify_caddyfile: "{{ caddy_verify_files.results[2].content | b64decode }}"
+
+    - name: Verify request affinity preserves access denials
+      ansible.builtin.uri:
+        url: http://127.0.0.1:80/private
+        headers:
+          Host: affinity.example.invalid
+        follow_redirects: none
+        status_code: 403
 
     # The point of the storage module: certificates must land in Redis, not on
     # local disk, or two nodes behind one floating IP cannot share a store and

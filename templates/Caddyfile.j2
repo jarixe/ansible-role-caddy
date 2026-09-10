@@ -90,6 +90,8 @@ http://{{ caddy_metrics_bind }}:{{ caddy_metrics_port }} {
 {% if site.extra_directives is defined %}
 {{ site.extra_directives | indent(4, first=True) }}
 {% endif %}
+{% set request_affinity = site.request_affinity | default({}) %}
+{% set request_affinity_enabled = request_affinity.enabled | default(true) | bool if site.request_affinity is defined else false %}
 {% set rp_opts = [] %}
 {# Load balancing #}
 {% if site.lb_policy is defined %}{% set _ = rp_opts.append('lb_policy ' ~ site.lb_policy) %}{% endif %}
@@ -109,6 +111,39 @@ http://{{ caddy_metrics_bind }}:{{ caddy_metrics_port }} {
 {% if site.unhealthy_status is defined %}{% set _ = rp_opts.append('unhealthy_status ' ~ site.unhealthy_status | join(' ')) %}{% endif %}
 {% if site.unhealthy_latency is defined %}{% set _ = rp_opts.append('unhealthy_latency ' ~ site.unhealthy_latency) %}{% endif %}
 {% if site.unhealthy_request_count is defined %}{% set _ = rp_opts.append('unhealthy_request_count ' ~ site.unhealthy_request_count) %}{% endif %}
+{% if request_affinity_enabled %}
+{% for rule in request_affinity.rules %}
+    @request_affinity_{{ loop.index }} path_regexp {{ rule.name }} {{ rule.pattern }}
+{% endfor %}
+
+    # Derive the routing key from the request path. Keep only these header
+    # mutations in route: wrapping reverse_proxy here would move it ahead of
+    # top-level access denials such as respond directives.
+    route {
+        request_header -{{ request_affinity.header }}
+{% for rule in request_affinity.rules %}
+        request_header @request_affinity_{{ loop.index }} {{ request_affinity.header }} {{ '{re.' ~ rule.name ~ '.key}' }}
+{% endfor %}
+    }
+    reverse_proxy {{ site.upstream }} {
+{% if request_affinity.fallback_policy != 'random' %}
+        lb_policy header {{ request_affinity.header }} {
+            fallback {{ request_affinity.fallback_policy }}
+        }
+{% else %}
+        lb_policy header {{ request_affinity.header }}
+{% endif %}
+{% for opt in rp_opts %}
+        {{ opt }}
+{% endfor %}
+        header_up -{{ request_affinity.header }}
+{% if site.upstream_tls_skip_verify | default(false) %}
+        transport http {
+            tls_insecure_skip_verify
+        }
+{% endif %}
+    }
+{% else %}
 {% if rp_opts or site.upstream_tls_skip_verify | default(false) %}
     reverse_proxy {{ site.upstream }} {
 {% for opt in rp_opts %}
@@ -122,6 +157,7 @@ http://{{ caddy_metrics_bind }}:{{ caddy_metrics_port }} {
     }
 {% else %}
     reverse_proxy {{ site.upstream }}
+{% endif %}
 {% endif %}
 }
 

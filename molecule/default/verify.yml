@@ -70,6 +70,15 @@
           - "'lb_policy ip_hash' in caddy_verify_allowed_block"
           - "'health_uri /healthz' in caddy_verify_allowed_block"
           - "'import compress' in caddy_verify_allowed_block"
+          - "'path_regexp test_user ^/user/(?P<key>[^/]+)(?:/|$)' in (caddy_verify_caddyfile.content | b64decode)"
+          - "'request_header -X-Role-Affinity-Key' in (caddy_verify_caddyfile.content | b64decode)"
+          - >-
+            'request_header @request_affinity_1 X-Role-Affinity-Key
+            {re.test_user.key}' in (caddy_verify_caddyfile.content | b64decode)
+          - "'lb_policy header X-Role-Affinity-Key' in (caddy_verify_caddyfile.content | b64decode)"
+          - "'fallback least_conn' not in (caddy_verify_caddyfile.content | b64decode)"
+          - "'header_up -X-Role-Affinity-Key' in (caddy_verify_caddyfile.content | b64decode)"
+          - "'X-Disabled-Affinity-Key' not in (caddy_verify_caddyfile.content | b64decode)"
           # A site address that is not a bare hostname still yields a usable
           # access log path.
           - >-
@@ -138,6 +147,11 @@
         - host: open.example.invalid
           path: /
           expect: [502, 503]
+        # Regression: putting reverse_proxy inside the affinity route made it
+        # execute before this site's top-level respond access denial.
+        - host: affinity.example.invalid
+          path: /private
+          expect: [403]
       loop_control:
         label: "{{ item.host }}{{ item.path }}"
 

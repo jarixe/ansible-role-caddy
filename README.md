@@ -62,6 +62,13 @@ caddy_sites:
     upstream: "10.0.0.5:8080"        # required — backend host:port, space-separated for several
     upstream_tls_skip_verify: true    # optional — proxy over HTTPS to a self-signed upstream
     lb_policy: round_robin            # optional — policy across multiple upstreams
+    request_affinity:                 # optional — path-derived sticky key
+      enabled: true
+      header: X-Internal-Affinity-Key
+      fallback_policy: least_conn
+      rules:
+        - name: user
+          pattern: ^/users/(?P<key>[^/]+)(?:/|$)
     lb_retries: 2                     # optional — retries against other upstreams
     health_uri: /healthz              # optional — enables ACTIVE health checks
     health_interval: 10s              # optional — probe frequency (default 30s)
@@ -119,6 +126,21 @@ caddy_sites:
     `max_fails` sets how many failures within that window it takes, and
     `unhealthy_status`, `unhealthy_latency` and `unhealthy_request_count` decide
     what counts as a failure in the first place.
+- `request_affinity` → captures a named `key` from one or more request-path
+  regular expressions, writes it to an internal request header, and selects an
+  upstream with Caddy's `header` hash policy. Rules are evaluated in declaration
+  order; unmatched paths use `fallback_policy`. The role removes any incoming
+  header before deriving the key and removes it again before proxying, so it is
+  neither client-controlled nor an application interface. Caddy's directive
+  sorting would otherwise move the unconditional removal around the matched
+  setters, so the role wraps only that header sequence in `route`. The proxy
+  remains top-level so `respond` and other access directives retain Caddy's
+  normal precedence over it. Every pattern must contain a named `(?P<key>...)`
+  capture. Enabled affinity is mutually exclusive with `lb_policy`; `enabled:
+  false` allows a caller to stage the configuration while retaining its existing
+  policy. `fallback_policy: random` emits Caddy's
+  backward-compatible implicit default; any other fallback requires a Caddy
+  release that supports nested selection-policy blocks.
 - `access_log: true` → the role pre-creates `{{ caddy_log_dir }}/<host>.access.log`
   as `caddy:caddy` mode `0600` before reload and configures the site to write JSON
   access logs there. Characters that cannot appear in a filename are replaced with
