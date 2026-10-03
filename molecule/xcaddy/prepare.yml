@@ -1,7 +1,6 @@
 ---
-# Test infrastructure only: a Redis server for Caddy's certificate store to
-# point at, and curl for a TLS probe the uri module cannot make (it cannot set
-# SNI, which is how Caddy picks a certificate).
+# Test infrastructure: Redis for Caddy's certificate store, curl for a TLS
+# probe, and packaged Caddy to exercise migration to the custom build.
 - name: Prepare
   hosts: all
   become: true
@@ -10,6 +9,7 @@
     - name: Install the test dependencies
       ansible.builtin.apt:
         name:
+          - caddy
           - redis-server
           - curl
         state: present

@@ -4,6 +4,9 @@
   become: true
   gather_facts: false
   tasks:
+    - name: Collect installed package facts
+      ansible.builtin.package_facts:
+
     - name: Collect service facts
       ansible.builtin.service_facts:
 
@@ -34,6 +37,7 @@
       ansible.builtin.assert:
         that:
           - ansible_facts.services['caddy.service'].state == 'running'
+          - "'caddy' not in ansible_facts.packages"
           # The pin is the point: an unpinned build follows upstream releases
           # and swaps the binary under a running edge node.
           - "'v2.11.4' in caddy_verify_version.stdout"
