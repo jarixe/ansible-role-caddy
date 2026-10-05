@@ -12,7 +12,9 @@ Two install paths:
   `respond`, `remote_ip`, …).
 - **`xcaddy`** — builds a custom binary when you need third-party modules
   (e.g. DNS providers for ACME-DNS, `cache-handler`, geoip). Opt in with
-  `caddy_install_method: xcaddy` + `caddy_extra_modules`.
+  `caddy_install_method: xcaddy` + `caddy_extra_modules`. This path removes an
+  existing Caddy package so a later package upgrade cannot overwrite the custom
+  binary and remove its compiled-in modules.
 
 ## Requirements
 
@@ -237,6 +239,11 @@ and restart the service to install it.
 
 Bumping `caddy_go_version` replaces an installed toolchain rather than being
 ignored, so the pin is real on hosts that already have Go.
+
+The `xcaddy` path removes an installed Caddy package before evaluating the build
+stamp. This both forces a rebuild when migrating from the package path and keeps
+future `apt upgrade` or `dist-upgrade` runs from replacing the custom binary with
+stock Caddy.
 
 ## Secrets and file modes
 

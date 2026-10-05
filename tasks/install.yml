@@ -69,6 +69,15 @@
 - name: Set up the xcaddy build
   when: caddy_install_method == 'xcaddy'
   block:
+    # A host can move from the apt path to xcaddy, leaving the package installed
+    # while /usr/bin/caddy is replaced by the custom build. A later dist-upgrade
+    # would then overwrite that binary with stock Caddy and remove its modules.
+    - name: Remove packaged Caddy before installing a custom build
+      ansible.builtin.apt:
+        name: caddy
+        state: absent
+        lock_timeout: "{{ caddy_apt_lock_timeout }}"
+
     - name: Ensure the build directory exists
       ansible.builtin.file:
         path: "{{ caddy_build_dir }}"
